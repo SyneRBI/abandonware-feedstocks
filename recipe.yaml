@@ -1,0 +1,343 @@
+# Usage:
+#   rattler-build build [--no-build-id]
+# Note:
+#   --no-build-id: required for ccache
+
+schema_version: 1
+
+context:
+  ismrmrd: "1.15.0"
+  siemens_to_ismrmrd: "1.3.0"
+  mrd_storage_server: "0.0.12"
+  ismrmrd_python: "1.15.0"
+  boost: "1.90.0.*" # min required for pet-rd-tools>=2.2.0 & stir>=6.4.0
+  python_min: "3.11"
+  c_cache_c: ${{ env.get("CMAKE_C_COMPILER_LAUNCHER", default="ccache") }}
+  c_cache_cxx: ${{ env.get("CMAKE_CXX_COMPILER_LAUNCHER", default="ccache") }}
+  ccache_dir: ${{ env.get("CCACHE_DIR", default="") }}
+  ccache_maxsize: ${{ env.get("CCACHE_MAXSIZE", default="5G") }}
+
+outputs:
+  - package:
+      name: ismrmrd
+      version: ${{ ismrmrd }}
+    source:
+      url: https://github.com/ismrmrd/ismrmrd/archive/refs/tags/v${{ ismrmrd }}.tar.gz
+      sha256: 57739de6d93203adc86f5e510729b7e2a45917bcab480dd1c1a6b6d16508a42c
+    build:
+      number: 0
+      script:
+        content:
+          - if: unix
+            then: |
+              cmake -G Ninja $SRC_DIR -B $BUILD_PREFIX/build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=$PREFIX \
+                -DCMAKE_PREFIX_PATH=$PREFIX \
+                -DBUILD_STATIC:BOOL=OFF \
+                -DBUILD_TESTS:BOOL=OFF \
+                -DBUILD_UTILITIES:BOOL=ON \
+                -DBUILD_EXAMPLES:BOOL=OFF
+              cmake --build $BUILD_PREFIX/build --config Release
+              cmake --install $BUILD_PREFIX/build --config Release
+            else: |
+              cmake -G Ninja "%SRC_DIR%" -B "%BUILD_PREFIX%/build" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="%LIBRARY_PREFIX%" \
+                -DCMAKE_PREFIX_PATH="%LIBRARY_PREFIX%" \
+                -DBUILD_STATIC:BOOL=OFF \
+                -DBUILD_TESTS:BOOL=OFF \
+                -DBUILD_UTILITIES:BOOL=ON \
+                -DBUILD_EXAMPLES:BOOL=OFF
+              cmake --build "%BUILD_PREFIX%/build" --config Release
+              cmake --install "%BUILD_PREFIX%/build" --config Release
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: ${{ c_cache_c }}
+          CMAKE_CXX_COMPILER_LAUNCHER: ${{ c_cache_cxx }}
+          CCACHE_DIR: ${{ ccache_dir }}
+          CCACHE_MAXSIZE: ${{ ccache_maxsize }}
+    requirements:
+      build:
+        - ccache
+        - cmake
+        - ninja
+        - ${{ compiler('c') }}
+        - ${{ compiler('cxx') }}
+      host:
+        - fftw
+        - hdf5
+        - libboost-devel ${{ boost }}
+        - nlohmann_json
+        - pugixml
+      run:
+        - fftw
+        - hdf5
+        - libboost ${{ boost }}
+        - nlohmann_json
+        - pugixml
+      run_exports:
+        - ${{ pin_subpackage('ismrmrd', upper_bound='x.x') }}
+    tests:
+      - script:
+          content:
+            - if: unix
+              then: test -f $PREFIX/lib/cmake/ISMRMRD/ISMRMRDConfig.cmake
+              else: if not exist "%LIBRARY_PREFIX%\lib\cmake\ISMRMRD\ISMRMRDConfig.cmake" exit 1
+      - script:
+          content:
+            - python conda/run_test.py
+        requirements:
+          run:
+            - python
+            - pytest
+            - numpy
+            - h5py
+        files:
+          source:
+            - conda/run_test.py
+    about:
+      summary: ISMRM Raw Data Format (ISMRMRD) C++ library
+      homepage: https://github.com/ismrmrd/ismrmrd
+      repository: https://github.com/ismrmrd/ismrmrd
+      documentation: https://ismrmrd.readthedocs.io
+      license: LicenseRef-ISMRMRD
+      license_file: LICENSE
+
+  - package:
+      name: siemens_to_ismrmrd
+      version: ${{ siemens_to_ismrmrd }}
+    source:
+      url: https://github.com/ismrmrd/siemens_to_ismrmrd/archive/refs/tags/v${{ siemens_to_ismrmrd }}.tar.gz
+      sha256: 3821bd77b6bae56ef4441198a0b6ecb928adf05b0f8f6a8cae1f2c1052be0f33
+      patches:
+        # conda-forge::boost==1.90 missing boost_system config; unused here regardless
+        - siemens_to_ismrmrd-1.3.0-drop-boost-system.patch
+    build:
+      number: 0
+      script:
+        content:
+          - if: unix
+            then: |
+              cmake -G Ninja $SRC_DIR -B $BUILD_PREFIX/build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=$PREFIX \
+                -DBUILD_DYNAMIC:BOOL=ON
+              cmake --build $BUILD_PREFIX/build --config Release
+              cmake --install $BUILD_PREFIX/build --config Release
+            else: |
+              cmake -G Ninja "%SRC_DIR%" -B "%BUILD_PREFIX%/build" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="%LIBRARY_PREFIX%" \
+                -DBUILD_DYNAMIC:BOOL=ON
+              cmake --build "%BUILD_PREFIX%/build" --config Release
+              cmake --install "%BUILD_PREFIX%/build" --config Release
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: ${{ c_cache_c }}
+          CMAKE_CXX_COMPILER_LAUNCHER: ${{ c_cache_cxx }}
+          CCACHE_DIR: ${{ ccache_dir }}
+          CCACHE_MAXSIZE: ${{ ccache_maxsize }}
+    requirements:
+      build:
+        - ccache
+        - cmake
+        - ninja
+        - ${{ compiler('c') }}
+        - ${{ compiler('cxx') }}
+      host:
+        # cmake: find_package(ISMRMRD 1.14.2)
+        - ${{ pin_subpackage('ismrmrd', exact=True) }}
+        - libboost-devel ${{ boost }}
+        - libxml2-devel
+        - libxslt
+      run:
+        - ${{ pin_subpackage('ismrmrd') }}
+        - libboost ${{ boost }}
+        - libxml2
+        - libxslt
+    tests:
+      - script:
+          content:
+            - siemens_to_ismrmrd --help
+            - ismrmrd_to_siemens --help
+      - if: not win
+        then:
+          script:
+            content:
+              - cd test && pytest -k simple_gre --echo-log-on-failure
+          requirements:
+            run:
+              - python
+              - pytest
+              - pyyaml
+              - ${{ pin_subpackage('ismrmrd-python') }}
+          files:
+            source:
+              - test/
+    about:
+      summary: Siemens raw data to ISMRMRD converter
+      homepage: https://github.com/ismrmrd/siemens_to_ismrmrd
+      repository: https://github.com/ismrmrd/siemens_to_ismrmrd
+      license: LicenseRef-siemens-to-ismrmrd
+      license_file: LICENSE
+
+  - package:
+      name: ismrmrd-python
+      version: ${{ ismrmrd_python }}
+    source:
+      url: https://github.com/ismrmrd/ismrmrd-python/archive/refs/tags/v${{ ismrmrd_python }}.tar.gz
+      sha256: 7467a0340e3dbd67e7bcadae42cc11f1059ade1296a9009b21f04cd6d026bd45
+    build:
+      number: 0
+      noarch: python
+      script: ${{ PYTHON }} -m pip install . -vv --no-deps
+    requirements:
+      host:
+        - python ${{ python_min }}.*
+        - pip
+        - setuptools >=78
+      run:
+        - python >=${{ python_min }}
+        - h5py >=2.3
+        - numpy >=1.22
+        - xsdata >=26.2
+    tests:
+      - python:
+          python_version:
+            - ${{ python_min }}.*
+            - "*"
+          imports:
+            - ismrmrd
+          pip_check: true
+      - script:
+          content:
+            - pytest tests
+        requirements:
+          run:
+            - python
+            - pytest
+        files:
+          source:
+            - tests/
+    about:
+      summary: Python implementation of the ISMRMRD
+      description: |
+        Python interface and utilities for the ISMRM Raw Data (ISMRMRD a.k.a. MRD) format.
+      homepage: https://ismrmrd.github.io
+      repository: https://github.com/ismrmrd/ismrmrd-python
+      license: MIT
+      license_file: LICENSE
+
+  - package:
+      name: mrd-storage-server
+      version: ${{ mrd_storage_server }}
+    source:
+      url: https://github.com/ismrmrd/mrd-storage-server/archive/refs/tags/v${{ mrd_storage_server }}.tar.gz
+      sha256: 003dc3da22dc4452f4d4a030b0a80b574f14a69600e62f8adcfac579fba35b82
+      target_directory: src
+    build:
+      number: 0
+      script:
+        content:
+          # gorm sqlite driver (mattn/go-sqlite3) is cgo-based
+          - if: unix
+            then: |
+              export CGO_ENABLED=1
+              export CGO_CFLAGS="-I$PREFIX/include"
+              export CGO_LDFLAGS="-L$PREFIX/lib -lsqlite3"
+            else: |
+              set CGO_ENABLED=1
+              set "CGO_CFLAGS=-I%LIBRARY_INC%"
+              set "CGO_LDFLAGS=-L%LIBRARY_LIB% -lsqlite3"
+          - cd src
+          - go-licenses save . --save_path ../library_licenses
+          - if: unix
+            then: go build -v -o $PREFIX/bin/mrd-storage-server -ldflags="-s -w" .
+            else: go build -v -o "%LIBRARY_BIN%\mrd-storage-server.exe" -ldflags="-s" .
+    requirements:
+      build:
+        - ${{ compiler('go-cgo') }}
+        - go-licenses
+        - if: unix
+          then:
+            - ${{ compiler('c') }}
+          else:
+            - ${{ compiler('m2w64_c') }}
+            - m2-base
+      host:
+        - sqlite
+      run:
+        - sqlite
+    tests:
+      - script:
+          content:
+            - mrd-storage-server --help
+      - script:
+          interpreter: ${{ "powershell" if win else "bash" }}
+          content:
+            - if: unix
+              then: |
+                set -euo pipefail
+                trap 'kill $(jobs -p)' EXIT
+                mrd-storage-server &
+                url_root="http://localhost:3333"
+                health_check_endpoint="${url_root}/v1/blobs?subject=123"
+                echo "Waiting for successful response from ${health_check_endpoint}"
+                for wait in {0..30}; do
+                  if [[ "$(curl -s -o /dev/null -m 1 -w '%{http_code}' "$health_check_endpoint")" == "200" ]]; then
+                    echo "Server ready"
+                    break
+                  fi
+                  if [ "$wait" == "30" ]; then
+                    echo "ERROR: could not reach server"
+                    exit 1
+                  fi
+                  echo "Waiting...$wait"
+                  sleep 1
+                done
+                content='This is my content'
+                curl --request POST \
+                  "${url_root}/v1/blobs/data?subject=123&session=mysession&name=NoiseCovariance" \
+                  --header 'content-type: text/plain' \
+                  --data "$content"
+                response_content=$(curl -s --request GET "${url_root}/v1/blobs/data/latest?subject=123&session=mysession&name=NoiseCovariance")
+                if [[ "${response_content}" != "${content}" ]]; then
+                  echo "ERROR: Did not get expected result from server. Response = ${response_content}"
+                  exit 1
+                fi
+              else: |
+                $ErrorActionPreference = "Stop"
+                $server = Start-Process -FilePath "$env:LIBRARY_BIN\mrd-storage-server.exe" -PassThru
+                try {
+                  $ready = $false
+                  for ($i = 0; $i -lt 30; $i++) {
+                    try {
+                      Invoke-RestMethod "http://localhost:3333/v1/blobs?subject=123" | Out-Null
+                      $ready = $true
+                      break
+                    } catch { Start-Sleep -Seconds 1 }
+                  }
+                  if (-not $ready) { throw "could not reach server" }
+                  $content = "This is my content"
+                  Invoke-RestMethod -Method Post -Uri "http://localhost:3333/v1/blobs/data?subject=123&session=mysession&name=NoiseCovariance" -ContentType "text/plain" -Body $content | Out-Null
+                  $response = Invoke-RestMethod -Method Get -Uri "http://localhost:3333/v1/blobs/data/latest?subject=123&session=mysession&name=NoiseCovariance"
+                  if ("$response" -ne $content) { throw "unexpected response: $response" }
+                } finally {
+                  Stop-Process -Id $server.Id -Force
+                }
+        requirements:
+          run:
+            - if: not win
+              then: curl
+      - package_contents:
+          bin:
+            - if: unix
+              then: mrd-storage-server
+              else: mrd-storage-server.exe
+    about:
+      summary: RESTful storage server for MRD blobs during MRI reconstructions
+      homepage: https://github.com/ismrmrd/mrd-storage-server
+      repository: https://github.com/ismrmrd/mrd-storage-server
+      license: MIT
+      license_file:
+        - src/LICENSE
+        - library_licenses/
