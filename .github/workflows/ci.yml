@@ -19,7 +19,7 @@ jobs:
         os: [ubuntu, macos, windows]
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 100M
+      CCACHE_MAXSIZE: 20M
     steps:
     - uses: actions/checkout@v7
     - name: Cache ccache

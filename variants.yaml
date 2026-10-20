@@ -15,3 +15,9 @@ m2w64_c_stdlib:
   - m2w64-sysroot
 m2w64_c_stdlib_version:
   - "12"
+hdf5:
+  - "*"
+  - 1.14.6
+boost:
+  - "*"
+  - 1.90.0 # min required for pet-rd-tools>=2.2.0 & stir>=6.4.0
