@@ -256,6 +256,27 @@ outputs:
               set "CGO_CFLAGS=-I%LIBRARY_INC%"
               set "CGO_LDFLAGS=-L%LIBRARY_LIB% -lsqlite3"
           - cd src
+          # work-around flaky proxy.golang.org
+          - if: unix
+            then: |
+              i=1
+              until go mod download; do
+                i=$((i+1))
+                if [ "$i" -gt 5 ]; then exit 1; fi
+                echo "go mod download failed, retrying..."
+                sleep 2
+              done
+            else: |
+              set RETRIES=0
+              :retry
+              go mod download
+              if %errorlevel%==0 goto retry_done
+              set /a RETRIES+=1
+              if %RETRIES% GEQ 5 exit /b 1
+              echo "go mod download failed, retrying..."
+              timeout /t 2 /nobreak >nul
+              goto retry
+              :retry_done
           - go-licenses save . --save_path ../library_licenses
           - if: unix
             then: go build -v -o $PREFIX/bin/mrd-storage-server -ldflags="-s -w" .
