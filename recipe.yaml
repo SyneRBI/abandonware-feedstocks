@@ -29,26 +29,21 @@ outputs:
       script:
         content:
           - if: unix
+            then: >
+              cmake -G Ninja $SRC_DIR -B $BUILD_PREFIX/build -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_PREFIX_PATH=$PREFIX
+              -DBUILD_STATIC:BOOL=OFF -DBUILD_TESTS:BOOL=OFF
+              -DBUILD_UTILITIES:BOOL=ON -DBUILD_EXAMPLES:BOOL=OFF
+            else: >
+              cmake -G Ninja "%SRC_DIR%" -B "%BUILD_PREFIX%/build" -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_INSTALL_PREFIX="%LIBRARY_PREFIX%" -DCMAKE_PREFIX_PATH="%LIBRARY_PREFIX%"
+              -DBUILD_STATIC:BOOL=OFF -DBUILD_TESTS:BOOL=OFF
+              -DBUILD_UTILITIES:BOOL=ON -DBUILD_EXAMPLES:BOOL=OFF
+          - if: unix
             then: |
-              cmake -G Ninja $SRC_DIR -B $BUILD_PREFIX/build \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=$PREFIX \
-                -DCMAKE_PREFIX_PATH=$PREFIX \
-                -DBUILD_STATIC:BOOL=OFF \
-                -DBUILD_TESTS:BOOL=OFF \
-                -DBUILD_UTILITIES:BOOL=ON \
-                -DBUILD_EXAMPLES:BOOL=OFF
               cmake --build $BUILD_PREFIX/build --config Release
               cmake --install $BUILD_PREFIX/build --config Release
             else: |
-              cmake -G Ninja "%SRC_DIR%" -B "%BUILD_PREFIX%/build" \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX="%LIBRARY_PREFIX%" \
-                -DCMAKE_PREFIX_PATH="%LIBRARY_PREFIX%" \
-                -DBUILD_STATIC:BOOL=OFF \
-                -DBUILD_TESTS:BOOL=OFF \
-                -DBUILD_UTILITIES:BOOL=ON \
-                -DBUILD_EXAMPLES:BOOL=OFF
               cmake --build "%BUILD_PREFIX%/build" --config Release
               cmake --install "%BUILD_PREFIX%/build" --config Release
         env:
@@ -117,18 +112,17 @@ outputs:
       script:
         content:
           - if: unix
+            then: >
+              cmake -G Ninja $SRC_DIR -B $BUILD_PREFIX/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX
+              -DBUILD_DYNAMIC:BOOL=ON
+            else: >
+              cmake -G Ninja "%SRC_DIR%" -B "%BUILD_PREFIX%/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="%LIBRARY_PREFIX%"
+              -DBUILD_DYNAMIC:BOOL=ON
+          - if: unix
             then: |
-              cmake -G Ninja $SRC_DIR -B $BUILD_PREFIX/build \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=$PREFIX \
-                -DBUILD_DYNAMIC:BOOL=ON
               cmake --build $BUILD_PREFIX/build --config Release
               cmake --install $BUILD_PREFIX/build --config Release
             else: |
-              cmake -G Ninja "%SRC_DIR%" -B "%BUILD_PREFIX%/build" \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX="%LIBRARY_PREFIX%" \
-                -DBUILD_DYNAMIC:BOOL=ON
               cmake --build "%BUILD_PREFIX%/build" --config Release
               cmake --install "%BUILD_PREFIX%/build" --config Release
         env:
