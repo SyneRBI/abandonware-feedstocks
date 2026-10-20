@@ -80,7 +80,19 @@ outputs:
               else: if not exist "%LIBRARY_PREFIX%\lib\cmake\ISMRMRD\ISMRMRDConfig.cmake" exit 1
       - script:
           content:
-            - python conda/run_test.py
+            - if: unix
+              then: python conda/run_test.py
+              # disable flaky file locking (sharing violation, Win32 33)
+              else: |
+                set HDF5_USE_FILE_LOCKING=FALSE
+                set N=0
+                :retry
+                python conda/run_test.py
+                if not errorlevel 1 exit /b 0
+                set /a N+=1
+                if %N% geq 3 exit /b 1
+                timeout /t 2 /nobreak >nul
+                goto retry
         requirements:
           run:
             - python
@@ -255,12 +267,24 @@ outputs:
           then:
             - ${{ compiler('c') }}
           else:
-            - ${{ compiler('m2w64_c') }}
-            - m2-base
+            - ${{ stdlib('m2w64_c') }}
       host:
         - sqlite
+        # go-cgo (build) constrains host mingw (vis. variants.yaml)
+        - if: win
+          then:
+            - ${{ compiler('m2w64_c') }}
+            - ${{ compiler('m2w64_cxx') }}
+            - ${{ compiler('m2w64_fortran') }}
       run:
         - sqlite
+        # mingw runtime linked into the cgo go binary (vis. conda-forge::ollama win-64)
+        - if: win
+          then:
+            - libgcc >=15
+            - libstdcxx >=15
+            - libwinpthread >=12.0.0.r4.gg4f2fc60ca
+            - ucrt
     tests:
       - script:
           content:
